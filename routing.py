@@ -18,4 +18,8 @@ def main():
 def endpoint_post():
     data = request.get_json()
     print(data)
+    #TODO guardar medición para que no se repita en BBDD
     return {'ML_model_result':True}
+
+#TODO endpoint de token JWT
+#TODO endpoints de control de usuario crear, eliminar, modificar
