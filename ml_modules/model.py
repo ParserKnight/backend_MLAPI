@@ -1,27 +1,29 @@
 import pandas as pd    
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+from imblearn.over_sampling import SMOTE
+import itertools
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
+#Read of data
+#TODO substitute with good route (both files)
 data = pd.read_csv("../input/application_record.csv", encoding = 'utf-8') 
 record = pd.read_csv("../input/credit_record.csv", encoding = 'utf-8') 
-
-sns.set_style('white') 
 
 # find all users' account open month.
 begin_month=pd.DataFrame(record.groupby(["ID"])["MONTHS_BALANCE"].agg(min))
 begin_month=begin_month.rename(columns={'MONTHS_BALANCE':'begin_month'}) 
-new_data=pd.merge(data,begin_month,how="left",on="ID") #merge to record data
-
-
+new_data=pd.merge(data,begin_month,how="left",on="ID") 
 
 record['dep_value'] = None
 record['dep_value'][record['STATUS'] =='2']='Yes' 
 record['dep_value'][record['STATUS'] =='3']='Yes' 
 record['dep_value'][record['STATUS'] =='4']='Yes' 
 record['dep_value'][record['STATUS'] =='5']='Yes' 
-
-
 
 cpunt=record.groupby('ID').count()
 cpunt['dep_value'][cpunt['dep_value'] > 0]='Yes' 
@@ -32,11 +34,7 @@ new_data['target']=new_data['dep_value']
 new_data.loc[new_data['target']=='Yes','target']=1
 new_data.loc[new_data['target']=='No','target']=0
 
-
-print(cpunt['dep_value'].value_counts())
 cpunt['dep_value'].value_counts(normalize=True)
-
-
 
 new_data.rename(columns={'CODE_GENDER':'Gender','FLAG_OWN_CAR':'Car','FLAG_OWN_REALTY':'Reality',
                          'CNT_CHILDREN':'ChldNo','AMT_INCOME_TOTAL':'inc',
@@ -47,11 +45,8 @@ new_data.rename(columns={'CODE_GENDER':'Gender','FLAG_OWN_CAR':'Car','FLAG_OWN_R
                         'OCCUPATION_TYPE':'occyp'
                         },inplace=True)
 
-
 new_data.dropna()
 new_data = new_data.mask(new_data == 'NULL').dropna()
-
-
 
 ivtable=pd.DataFrame(new_data.columns,columns=['variable'])
 ivtable['IV']=None
@@ -59,9 +54,6 @@ namelist = ['FLAG_MOBIL','begin_month','dep_value','target','ID']
 
 for i in namelist:
     ivtable.drop(ivtable[ivtable['variable'] == i].index, inplace=True)
-
-sns.set_style("whitegrid") 
-
 
 # Calculate information value
 def calc_iv(df, feature, target, pr=False):
@@ -95,10 +87,7 @@ def calc_iv(df, feature, target, pr=False):
         print('IV = ', data['IV'].sum())
 
     iv = data['IV'].sum()
-    print('This variable\'s IV is:',iv)
-    print(df[feature].value_counts())
     return iv, data
-
 
 def convert_dummy(df, feature,rank=0):
     pos = pd.get_dummies(df[feature], prefix=feature)
@@ -122,125 +111,64 @@ def get_category(df, col, binsnum, labels, qcut = False):
     df[name] = df[name].astype(object)
     return df
 
-import itertools
-def plot_confusion_matrix(cm, classes,
-                          normalize=False,
-                          title='Confusion matrix',
-                          cmap=plt.cm.Blues):
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        
-    print(cm)
-
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes)
-    plt.yticks(tick_marks, classes)
-
-    fmt = '.2f' if normalize else 'd'
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, format(cm[i, j], fmt),
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
-
-    plt.tight_layout()
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
-
 new_data['Gender'] = new_data['Gender'].replace(['F','M'],[0,1])
-print(new_data['Gender'].value_counts())
 iv, data = calc_iv(new_data,'Gender','target')
 ivtable.loc[ivtable['variable']=='Gender','IV']=iv
-data.head()
 
 new_data['Car'] = new_data['Car'].replace(['N','Y'],[0,1])
-print(new_data['Car'].value_counts())
 iv, data=calc_iv(new_data,'Car','target')
 ivtable.loc[ivtable['variable']=='Car','IV']=iv
-data.head()
 
 new_data['Reality'] = new_data['Reality'].replace(['N','Y'],[0,1])
-print(new_data['Reality'].value_counts())
 iv, data=calc_iv(new_data,'Reality','target')
 ivtable.loc[ivtable['variable']=='Reality','IV']=iv
-data.head()
 
 new_data['phone']=new_data['phone'].astype(str)
-print(new_data['phone'].value_counts(normalize=True,sort=False))
 new_data.drop(new_data[new_data['phone'] == 'nan' ].index, inplace=True)
 iv, data=calc_iv(new_data,'phone','target')
 ivtable.loc[ivtable['variable']=='phone','IV']=iv
-data.head()
 
-
-print(new_data['email'].value_counts(normalize=True,sort=False))
 new_data['email']=new_data['email'].astype(str)
 iv, data=calc_iv(new_data,'email','target')
 ivtable.loc[ivtable['variable']=='email','IV']=iv
-data.head()
-
 
 new_data['wkphone']=new_data['wkphone'].astype(str)
 iv, data = calc_iv(new_data,'wkphone','target')
 new_data.drop(new_data[new_data['wkphone'] == 'nan' ].index, inplace=True)
 ivtable.loc[ivtable['variable']=='wkphone','IV']=iv
-data.head()
 
 new_data.loc[new_data['ChldNo'] >= 2,'ChldNo']='2More'
-print(new_data['ChldNo'].value_counts(sort=False))
-
-
-
 
 iv, data=calc_iv(new_data,'ChldNo','target')
 ivtable.loc[ivtable['variable']=='ChldNo','IV']=iv
-data.head()
 
 new_data = convert_dummy(new_data,'ChldNo')
 
 new_data['inc']=new_data['inc'].astype(object)
 new_data['inc'] = new_data['inc']/10000 
-print(new_data['inc'].value_counts(bins=10,sort=False))
-new_data['inc'].plot(kind='hist',bins=50,density=True)
 
 new_data = get_category(new_data,'inc', 3, ["low","medium", "high"], qcut = True)
 iv, data = calc_iv(new_data,'gp_inc','target')
 ivtable.loc[ivtable['variable']=='inc','IV']=iv
-data.head()
-
 
 new_data = convert_dummy(new_data,'gp_inc')
 
-
 new_data['Age']=-(new_data['DAYS_BIRTH'])//365	
-print(new_data['Age'].value_counts(bins=10,normalize=True,sort=False))
-new_data['Age'].plot(kind='hist',bins=20,density=True)
-
 
 new_data = get_category(new_data,'Age',5, ["lowest","low","medium","high","highest"])
 iv, data = calc_iv(new_data,'gp_Age','target')
 ivtable.loc[ivtable['variable']=='DAYS_BIRTH','IV'] = iv
-data.head()
-
 
 new_data = convert_dummy(new_data,'gp_Age')
 
-
 new_data['worktm']=-(new_data['DAYS_EMPLOYED'])//365	
-new_data[new_data['worktm']<0] = np.nan #填补为缺失值
+new_data[new_data['worktm']<0] = np.nan 
 new_data['DAYS_EMPLOYED']
-new_data['worktm'].fillna(new_data['worktm'].mean(),inplace=True) #均值填补
-new_data['worktm'].plot(kind='hist',bins=20,density=True)
-
+new_data['worktm'].fillna(new_data['worktm'].mean(),inplace=True)
 
 new_data = get_category(new_data,'worktm',5, ["lowest","low","medium","high","highest"])
 iv, data=calc_iv(new_data,'gp_worktm','target')
 ivtable.loc[ivtable['variable']=='DAYS_EMPLOYED','IV']=iv
-data.head()
-
 
 new_data = convert_dummy(new_data,'gp_worktm')
 
@@ -252,64 +180,48 @@ new_data['famsizegp']=new_data['famsizegp'].astype(object)
 new_data.loc[new_data['famsizegp']>=3,'famsizegp']='3more'
 iv, data=calc_iv(new_data,'famsizegp','target')
 ivtable.loc[ivtable['variable']=='famsize','IV']=iv
-data.head()
-
 
 new_data = convert_dummy(new_data,'famsizegp')
 
-print(new_data['inctp'].value_counts(sort=False))
-print(new_data['inctp'].value_counts(normalize=True,sort=False))
 new_data.loc[new_data['inctp']=='Pensioner','inctp']='State servant'
 new_data.loc[new_data['inctp']=='Student','inctp']='State servant'
 iv, data=calc_iv(new_data,'inctp','target')
 ivtable.loc[ivtable['variable']=='inctp','IV']=iv
-data.head()
 
 new_data = convert_dummy(new_data,'inctp')
 
 new_data.loc[(new_data['occyp']=='Cleaning staff') | (new_data['occyp']=='Cooking staff') | (new_data['occyp']=='Drivers') | (new_data['occyp']=='Laborers') | (new_data['occyp']=='Low-skill Laborers') | (new_data['occyp']=='Security staff') | (new_data['occyp']=='Waiters/barmen staff'),'occyp']='Laborwk'
 new_data.loc[(new_data['occyp']=='Accountants') | (new_data['occyp']=='Core staff') | (new_data['occyp']=='HR staff') | (new_data['occyp']=='Medicine staff') | (new_data['occyp']=='Private service staff') | (new_data['occyp']=='Realty agents') | (new_data['occyp']=='Sales staff') | (new_data['occyp']=='Secretaries'),'occyp']='officewk'
 new_data.loc[(new_data['occyp']=='Managers') | (new_data['occyp']=='High skill tech staff') | (new_data['occyp']=='IT staff'),'occyp']='hightecwk'
-print(new_data['occyp'].value_counts())
 iv, data=calc_iv(new_data,'occyp','target')
 ivtable.loc[ivtable['variable']=='occyp','IV']=iv
-data.head()         
 
 new_data = convert_dummy(new_data,'occyp')
 
 iv, data=calc_iv(new_data,'houtp','target')
 ivtable.loc[ivtable['variable']=='houtp','IV']=iv
-data.head()
 
 new_data = convert_dummy(new_data,'houtp')
 
 new_data.loc[new_data['edutp']=='Academic degree','edutp']='Higher education'
 iv, data=calc_iv(new_data,'edutp','target')
 ivtable.loc[ivtable['variable']=='edutp','IV']=iv
-data.head()
+
 
 new_data = convert_dummy(new_data,'edutp')
 
 new_data['famtp'].value_counts(normalize=True,sort=False)
 
-
-
 iv, data=calc_iv(new_data,'famtp','target')
 ivtable.loc[ivtable['variable']=='famtp','IV']=iv
-data.head()
+
 
 new_data = convert_dummy(new_data,'famtp')
 
-
-
-ivtable=ivtable.sort_values(by='IV',ascending=False)
+ivtable = ivtable.sort_values(by='IV',ascending=False)
 ivtable.loc[ivtable['variable']=='DAYS_BIRTH','variable']='agegp'
 ivtable.loc[ivtable['variable']=='DAYS_EMPLOYED','variable']='worktmgp'
 ivtable.loc[ivtable['variable']=='inc','variable']='incgp'
-ivtable
-
-new_data.columns
-
 
 Y = new_data['target']
 X = new_data[['Gender','Reality','ChldNo_1', 'ChldNo_2More','wkphone',
@@ -325,49 +237,16 @@ X = new_data[['Gender','Reality','ChldNo_1', 'ChldNo_2More','wkphone',
 
 
 
-from imblearn.over_sampling import SMOTE
 X_balance,Y_balance = SMOTE().fit_sample(X,Y)
+
 X_balance = pd.DataFrame(X_balance,columns=X.columns)
 
-from sklearn.model_selection import train_test_split
 X_train, X_test, y_train, y_test = train_test_split(X_balance,Y_balance, 
                                                     stratify=Y_balance, test_size=0.3,
                                                     random_state = 10086)
 
-###########################
+########################### Model choosen randomForest for predict#####
 
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import confusion_matrix
-from sklearn.linear_model import LogisticRegression
-
-logit = LogisticRegression(random_state=0, solver='lbfgs')
-clf = logit.fit(X_train, y_train)
-y_predict = clf.predict(X_test)
-print('Accuracy Score is',accuracy_score(y_test, y_predict))
-print(pd.DataFrame(confusion_matrix(y_test,y_predict)))
-
-sns.set_style("white") 
-class_names = ['0','1']
-plot_confusion_matrix(confusion_matrix(y_test,y_predict),
-                      classes= class_names, normalize = True, 
-                      title='Normalized Confusion Matrix: Logistic Regression')
-
-
-from sklearn.tree import DecisionTreeClassifier
-dt = DecisionTreeClassifier()
-dtfit = dt.fit(X_train, y_train)
-y_predict = dtfit.predict(X_test)
-print('Accuracy Score is',accuracy_score(y_test, y_predict))
-print(pd.DataFrame(confusion_matrix(y_test,y_predict)))
-
-plot_confusion_matrix(confusion_matrix(y_test,y_predict),
-                      classes=class_names, normalize = True, 
-                      title='Normalized Confusion Matrix: CART')
-
-
-
-
-from sklearn.ensemble import RandomForestClassifier
 rf = RandomForestClassifier(n_estimators=50)
 rffit = rf.fit(X_train, y_train)
 y_predict = rffit.predict(X_test)
@@ -378,13 +257,4 @@ plot_confusion_matrix(confusion_matrix(y_test,y_predict),
                       classes=class_names, normalize = True, 
                       title='Normalized Confusion Matrix: Ramdom Forests')
 
-from sklearn import svm
-model = svm.SVC(kernel='linear', C = 1)
-svmc = model.fit(X_train, y_train)
-y_predict = svmc.predict(X_test)
-print('Accuracy Score is',accuracy_score(y_test, y_predict))
-print(pd.DataFrame(confusion_matrix(y_test,y_predict)))
 
-plot_confusion_matrix(confusion_matrix(y_test,y_predict),
-                      classes=class_names, normalize = True, 
-                      title='Normalized Confusion Matrix: SVM')
