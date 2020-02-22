@@ -3,23 +3,27 @@
 from flask import Flask
 from flask import Blueprint
 from flask import request
+from handlers import errorHandler
+from validations import validate
 
-endpoint_one = Blueprint('endpoint_1', __name__)
-endpoint_two = Blueprint('endpoint_2',__name__)
+base_api = Blueprint('base_api', __name__)
 
-@endpoint_one.route('/',methods=['GET'])
+@base_api.route('/',methods=['GET'])
+@errorHandler
 def main():
-
-    #data = request.get_json()
-    "Endpoint de prueba"
+    """Test endpoint"""
     return "hola mundo"
 
-@endpoint_two.route('/request',methods=['POST'])
+@base_api.route('/request',methods=['POST'])
+@errorHandler
 def endpoint_post():
-    data = request.get_json()
-    print(data)
-    #TODO guardar medición para que no se repita en BBDD
-    return {'ML_model_result':True}
+    """Endpoint for ML prediction"""
 
-#TODO endpoint de token JWT
-#TODO endpoints de control de usuario crear, eliminar, modificar
+    data = request.get_json()
+    validator = Parser(data)
+    validator.validate()
+    # var =  model.predict(data)
+    # return {"result": var}
+    #TODO Save in database to constraint repetition
+    return {'result':True}
+
