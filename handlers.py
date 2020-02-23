@@ -6,8 +6,11 @@ def errorHandler(func):
     def run(*args,**kwargs):
         try:
             return func(*args,**kwargs)
-        #except badRequest as i:
-        #    return {"error_bad_request"}
+        #except BadParameter as e:
+        #    return Error_response(msg=e.msg)
         except Exception as e:
             raise e
     return run
+
+
+
